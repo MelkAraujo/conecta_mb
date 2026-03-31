@@ -93,7 +93,7 @@ class UnidadeService {
                     v[0].unidade_id, 
                     novoStatus, 
                     administradorId, 
-                    `Decisão tomada pelo administrador.`
+                    `Decisão tomada pelo administrador(a).`
                 ]
             );
 
@@ -106,6 +106,75 @@ class UnidadeService {
         } finally {
             connection.release();
         }
+    }
+
+    async listarPendentes() {
+    const query = `
+        SELECT 
+            up.id AS vinculo_id,
+            p.nome AS morador_nome,
+            u.numero AS unidade_numero,
+            u.bloco AS unidade_bloco,
+            up.tipo_vinculo,
+            up.data_inicio,
+            up.status
+        FROM unidade_pessoas up
+        JOIN pessoas p ON up.pessoa_id = p.id
+        JOIN unidades u ON up.unidade_id = u.id
+        WHERE up.status = 'Pendente'
+        ORDER BY up.data_inicio ASC`;
+
+        const [rows] = await db.execute(query);
+        return rows;
+    }
+
+    
+    async buscarUnidades(termo) {
+        // Se não mandar termo, busca tudo. Se mandar, busca por aproximação
+        const parametro = termo ? `%${termo}%` : '%';
+
+        const query = `
+            SELECT 
+                u.id AS unidade_id,
+                u.numero,
+                u.bloco,
+                p.nome AS morador_nome,
+                up.tipo_vinculo,
+                up.status
+            FROM unidades u
+            LEFT JOIN unidade_pessoas up ON u.id = up.unidade_id AND (up.data_fim IS NULL OR up.status = 'Pendente')
+            LEFT JOIN pessoas p ON up.pessoa_id = p.id
+            WHERE u.numero LIKE ?
+            ORDER BY u.bloco, u.numero`;
+
+        const [rows] = await db.execute(query, [parametro]);
+
+        // Formatação inteligente para o Front-end (Agrupando moradores por unidade)
+        const unidadesAgrupadas = rows.reduce((acc, row) => {
+            // Se a unidade ainda não está no array final, adicionamos
+            if (!acc[row.unidade_id]) {
+                acc[row.unidade_id] = {
+                    id: row.unidade_id,
+                    numero: row.numero,
+                    bloco: row.bloco,
+                    moradores: []
+                };
+            }
+            
+            // Se tiver morador vinculado, coloca dentro do array de moradores daquela unidade
+            if (row.morador_nome) {
+                acc[row.unidade_id].moradores.push({
+                    nome: row.morador_nome,
+                    vinculo: row.tipo_vinculo,
+                    status: row.status
+                });
+            }
+            
+            return acc;
+        }, {});
+
+        // Converte o objeto de volta para um array limpo
+        return Object.values(unidadesAgrupadas);
     }
 }
 

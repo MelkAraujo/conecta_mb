@@ -26,6 +26,32 @@ class UnidadeController {
             return res.status(400).json({ error: error.message });
         }
     }
+
+    async listarPendentes(req, res) {
+        try {
+            const pendentes = await UnidadeService.listarPendentes();
+            return res.json(pendentes);
+        } catch (error) {
+            return res.status(500).json({ error: 'Erro ao buscar pendências.' });
+        }
+    }
+
+    async buscar(req, res) {
+        try {
+            // Pegamos o que vem depois do "?" na URL (ex: ?q=101)
+            const { q } = req.query; 
+            
+            const resultados = await UnidadeService.buscarUnidades(q);
+            
+            return res.json({
+                totalRecords: resultados.length,
+                data: resultados
+            });
+        } catch (error) {
+            console.error(error);
+            return res.status(500).json({ error: 'Erro ao realizar a busca de unidades.' });
+        }
+    }
 }
 
 module.exports = new UnidadeController();
